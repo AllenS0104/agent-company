@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+web/dist/
+web/.vite/
+
+# IDE
+.vscode/
+.idea/
+
+# Environment
+.env
+*.db
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Cache
+.pytest_cache/
+.ruff_cache/

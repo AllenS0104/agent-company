@@ -1,0 +1,10 @@
+services:
+  agent-company:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./agent_company.db:/app/agent_company.db
+    restart: unless-stopped

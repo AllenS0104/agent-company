@@ -1,0 +1,201 @@
+@import "tailwindcss";
+
+/* ── Design Tokens ── */
+:root {
+  --radius-sm: 0.5rem;    /* 8px  – tag, badge, input */
+  --radius-md: 0.75rem;   /* 12px – button, card-inner */
+  --radius-lg: 1rem;      /* 16px – card, panel */
+  --radius-xl: 1.25rem;   /* 20px – modal, section */
+}
+
+body {
+  margin: 0;
+  background: #0a0e1a;
+  color: #e2e8f0;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+/* ── Glassmorphism (legacy compat) ── */
+.glass {
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+/* ── Unified Card ── */
+.card {
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(148, 163, 184, 0.08);
+  border-radius: var(--radius-lg);
+}
+
+.card-hover {
+  transition: all 0.2s ease;
+}
+.card-hover:hover {
+  background: rgba(15, 23, 42, 0.7);
+  border-color: rgba(99, 102, 241, 0.15);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* ── Unified Chip / Badge ── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #818cf8, #c084fc, #f472b6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Pulse dot animation */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+.animate-pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+
+/* Message fade-in animation */
+@keyframes msg-fade-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-msg-in {
+  animation: msg-fade-in 0.4s ease-out both;
+}
+
+/* Loading phase text animation */
+@keyframes phase-fade {
+  0%   { opacity: 0; transform: translateY(6px); }
+  15%  { opacity: 1; transform: translateY(0); }
+  85%  { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-6px); }
+}
+.animate-phase {
+  animation: phase-fade 2.8s ease-in-out infinite;
+}
+
+/* Orbit dots for loading */
+@keyframes orbit {
+  0%   { transform: rotate(0deg) translateX(28px) rotate(0deg); }
+  100% { transform: rotate(360deg) translateX(28px) rotate(-360deg); }
+}
+.animate-orbit {
+  animation: orbit 3s linear infinite;
+}
+
+/* Shimmer for loading cards */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(99,102,241,0.06) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+/* Sample topic card hover */
+.topic-card {
+  transition: all 0.25s ease;
+}
+.topic-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.12);
+}
+
+/* Settings panel slide */
+@keyframes settings-slide {
+  from { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; }
+  to   { opacity: 1; max-height: 200px; }
+}
+.animate-settings {
+  animation: settings-slide 0.3s ease-out both;
+  overflow: hidden;
+}
+
+/* Sidebar active indicator */
+.nav-active-indicator {
+  position: relative;
+}
+.nav-active-indicator::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  border-radius: 0 4px 4px 0;
+  background: linear-gradient(180deg, #818cf8, #6366f1);
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+}
+
+/* Page transition */
+.page-enter {
+  animation: page-in 0.3s ease-out both;
+}
+@keyframes page-in {
+  from { opacity: 0; transform: translateX(8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Floating glow for empty states */
+@keyframes float-glow {
+  0%, 100% { transform: translateY(0); box-shadow: 0 8px 32px rgba(99,102,241,0.15); }
+  50%      { transform: translateY(-6px); box-shadow: 0 16px 48px rgba(99,102,241,0.25); }
+}
+.animate-float {
+  animation: float-glow 3s ease-in-out infinite;
+}
+
+/* Agent speaking indicator */
+@keyframes speaking-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.3); }
+  50% { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0); }
+}
+.speaking {
+  animation: speaking-pulse 1.5s ease-in-out 1;
+}
+
+/* Decision card stamp-in effect */
+@keyframes stamp-in {
+  0% { opacity: 0; transform: scale(0.8) rotate(-2deg); }
+  60% { opacity: 1; transform: scale(1.02) rotate(0.5deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+.animate-stamp {
+  animation: stamp-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Sparkle celebration effect */
+@keyframes sparkle {
+  0%, 100% { opacity: 0; transform: scale(0) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1) rotate(180deg); }
+}
+.sparkle-item {
+  animation: sparkle 1.5s ease-in-out infinite;
+}
+
