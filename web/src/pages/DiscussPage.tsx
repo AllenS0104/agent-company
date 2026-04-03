@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Loader2, Settings2, Download, Sparkles, Key } from 'lucide-react';
-import { getModes, getProviders, exportThread, getConfig, updateConfig, getThreads, getThreadMessages, streamDiscuss } from '../api/client';
+import { getModes, getProviders, exportThread, getConfig, updateConfig, getThreads, getThreadMessages, streamDiscuss, testModel } from '../api/client';
+import type { ModelTestResult } from '../api/client';
 import { MessageBubble } from '../components/MessageBubble';
 import { DecisionCard } from '../components/DecisionCard';
 import { TaskList } from '../components/TaskList';
@@ -90,6 +91,8 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
   const [claudeKey, setClaudeKey] = useState('');
   const [configStatus, setConfigStatus] = useState<any>(null);
   const [configSaved, setConfigSaved] = useState(false);
+  const [modelStatus, setModelStatus] = useState<'untested' | 'testing' | 'success' | 'failed'>('untested');
+  const [modelTestResult, setModelTestResult] = useState<ModelTestResult | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -164,6 +167,27 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
     setProvider(p);
     const models = MODEL_OPTIONS[p] ?? [];
     setModel(models[0] ?? '');
+    setModelStatus('untested');
+    setModelTestResult(null);
+  }
+
+  function handleModelChange(m: string) {
+    setModel(m);
+    setModelStatus('untested');
+    setModelTestResult(null);
+  }
+
+  async function handleTestModel() {
+    setModelStatus('testing');
+    setModelTestResult(null);
+    try {
+      const result = await testModel(provider, model);
+      setModelStatus(result.success ? 'success' : 'failed');
+      setModelTestResult(result);
+    } catch {
+      setModelStatus('failed');
+      setModelTestResult({ success: false, message: '❌ 网络错误', provider, model });
+    }
   }
 
   function handleQuickTopic(title: string) {
@@ -270,11 +294,48 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
               </select>
             </div>
             <div>
-              <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">{t('discuss.model')}</label>
-              <select value={model} onChange={e => setModel(e.target.value)}
-                className="w-full bg-white/5 text-slate-200 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-colors">
-                {currentModels.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
+              <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center">
+                {t('discuss.model')}
+                <span className={`inline-block w-2 h-2 rounded-full ml-1.5 ${
+                  modelStatus === 'success' ? 'bg-emerald-400' :
+                  modelStatus === 'failed' ? 'bg-red-400' :
+                  modelStatus === 'testing' ? 'bg-yellow-400 animate-pulse' :
+                  'bg-slate-600'
+                }`} />
+              </label>
+              <div className="flex gap-2">
+                <select value={model} onChange={e => handleModelChange(e.target.value)}
+                  className="flex-1 bg-white/5 text-slate-200 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-colors">
+                  {currentModels.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+                <button
+                  onClick={handleTestModel}
+                  disabled={modelStatus === 'testing' || !model}
+                  className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-xs text-slate-400 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                  title="测试模型连接"
+                >
+                  {modelStatus === 'testing' ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    '🔗 测试'
+                  )}
+                </button>
+              </div>
+              {modelTestResult && (
+                <div className={`mt-2 px-3 py-2 rounded-lg text-xs ${
+                  modelTestResult.success
+                    ? 'bg-emerald-500/10 border border-emerald-500/15 text-emerald-400'
+                    : 'bg-red-500/10 border border-red-500/15 text-red-400'
+                }`}>
+                  <p>{modelTestResult.message}</p>
+                  {modelTestResult.response_time_ms && (
+                    <p className="text-[10px] mt-0.5 opacity-70">
+                      响应时间: {modelTestResult.response_time_ms}ms
+                      {modelTestResult.model_echo && ` · 回复: "${modelTestResult.model_echo}"`}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">{t('discuss.workflow')}</label>
@@ -626,7 +687,14 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
           </button>
         </div>
         <div className="flex items-center gap-3 mt-2 text-[11px] text-slate-600">
-          <span>{provider}/{model}</span>
+          <span className="flex items-center gap-1">
+            <span className={`w-1.5 h-1.5 rounded-full ${
+              modelStatus === 'success' ? 'bg-emerald-400' :
+              modelStatus === 'failed' ? 'bg-red-400' :
+              'bg-slate-600'
+            }`} />
+            {provider}/{model}
+          </span>
           <span>·</span>
           <span>{modes.find(m => m.id === mode)?.name || mode} mode</span>
           <span>·</span>

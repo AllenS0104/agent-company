@@ -395,6 +395,79 @@ async def update_config(body: dict):
     return {"success": True, "message": "配置已更新（仅当前会话有效）"}
 
 
+@router.post("/test-model")
+async def test_model(body: dict):
+    """测试指定 provider + model 是否能正常工作
+
+    body: {"provider": "github", "model": "openai/gpt-4.1"}
+    返回: {"success": true/false, "message": "...", "response_time_ms": 123, "model_echo": "..."}
+    """
+    import time
+
+    from ..llm.factory import create_provider
+
+    provider_name = body.get("provider", "github")
+    model_name = body.get("model", "")
+
+    try:
+        # 根据 provider 传入当前 config 中的 token/key
+        kwargs: dict = {"model": model_name}
+        if provider_name == "github":
+            if config.GITHUB_TOKEN:
+                kwargs["token"] = config.GITHUB_TOKEN
+        elif provider_name == "openai":
+            if config.OPENAI_API_KEY:
+                kwargs["api_key"] = config.OPENAI_API_KEY
+        elif provider_name == "gemini":
+            if config.GEMINI_API_KEY:
+                kwargs["api_key"] = config.GEMINI_API_KEY
+        elif provider_name == "claude":
+            if config.CLAUDE_API_KEY:
+                kwargs["api_key"] = config.CLAUDE_API_KEY
+
+        start = time.time()
+        provider = create_provider(provider_name, **kwargs)
+
+        response = await provider.chat(
+            messages=[{"role": "user", "content": "Say 'OK' in one word."}],
+            temperature=0,
+            max_tokens=10,
+        )
+        elapsed_ms = int((time.time() - start) * 1000)
+
+        return {
+            "success": True,
+            "message": f"✅ {model_name} 连接成功",
+            "response_time_ms": elapsed_ms,
+            "model_echo": response[:100] if response else "",
+            "provider": provider_name,
+            "model": model_name,
+        }
+    except Exception as e:
+        error_msg = str(e)
+        if "unknown_model" in error_msg.lower() or "404" in error_msg:
+            msg = f"模型不存在: {model_name}"
+        elif (
+            "401" in error_msg
+            or "unauthorized" in error_msg.lower()
+            or "authentication" in error_msg.lower()
+        ):
+            msg = "认证失败，请检查 API Key"
+        elif "429" in error_msg or "rate" in error_msg.lower():
+            msg = "请求频率限制，请稍后再试"
+        elif "timeout" in error_msg.lower():
+            msg = "连接超时，请检查网络"
+        else:
+            msg = f"连接失败: {error_msg[:100]}"
+
+        return {
+            "success": False,
+            "message": f"❌ {msg}",
+            "provider": provider_name,
+            "model": model_name,
+        }
+
+
 @router.get("/providers")
 async def list_providers():
     """列出可用的 LLM Provider"""

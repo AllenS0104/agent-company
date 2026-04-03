@@ -70,6 +70,25 @@ export async function updateConfig(cfg: Record<string, string>): Promise<any> {
   });
 }
 
+// ── Model Test ─────────────────────────────────
+
+export interface ModelTestResult {
+  success: boolean;
+  message: string;
+  response_time_ms?: number;
+  model_echo?: string;
+  provider: string;
+  model: string;
+}
+
+export async function testModel(provider: string, model: string): Promise<ModelTestResult> {
+  return fetchJson<ModelTestResult>(`${BASE}/test-model`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider, model }),
+  });
+}
+
 export async function getMemories(keyword = '', limit = 20, tags: string[] = []): Promise<MemoryItem[]> {
   const params = new URLSearchParams();
   if (keyword) params.set('keyword', keyword);
