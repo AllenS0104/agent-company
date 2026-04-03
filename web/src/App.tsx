@@ -6,6 +6,7 @@ import { WelcomePage } from './pages/WelcomePage';
 import { DiscussPage } from './pages/DiscussPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { MemoryPage } from './pages/MemoryPage';
+import { AgentsPage } from './pages/AgentsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { getConfig } from './api/client';
 
@@ -33,6 +34,7 @@ export default function App() {
         <main className="flex-1 overflow-hidden">
           <Routes>
             <Route path="/" element={<DiscussPage onReconfigure={() => setIsConfigured(false)} />} />
+            <Route path="/agents" element={<AgentsPage />} />
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/memory" element={<MemoryPage />} />
             <Route path="*" element={<NotFoundPage />} />

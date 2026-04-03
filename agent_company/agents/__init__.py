@@ -2,6 +2,7 @@
 
 from .architect import create_architect_agent
 from .coder import create_coder_agent
+from .custom import CustomAgentStore
 from .devops import create_devops_agent
 from .docs import create_docs_agent
 from .idea import create_idea_agent
@@ -20,4 +21,5 @@ __all__ = [
     "create_qa_agent",
     "create_reviewer_agent",
     "create_security_agent",
+    "CustomAgentStore",
 ]

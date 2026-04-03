@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { MessageSquare, History, Brain, Menu, X } from 'lucide-react';
-
-const links = [
-  { to: '/', icon: MessageSquare, label: '新讨论', desc: '发起多 Agent 讨论' },
-  { to: '/history', icon: History, label: '历史记录', desc: '查看过往讨论' },
-  { to: '/memory', icon: Brain, label: '项目记忆', desc: '知识库与决策' },
-];
+import { MessageSquare, History, Brain, Menu, X, Users } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export function Sidebar() {
   const [open, setOpen] = useState(false);
+  const { t, i18n } = useTranslation();
+
+  const links = [
+    { to: '/', icon: MessageSquare, label: t('sidebar.newDiscussion') },
+    { to: '/agents', icon: Users, label: t('sidebar.agents') },
+    { to: '/history', icon: History, label: t('sidebar.history') },
+    { to: '/memory', icon: Brain, label: t('sidebar.memory') },
+  ];
 
   return (
     <>
@@ -46,7 +49,7 @@ export function Sidebar() {
 
         {/* Nav */}
         <nav className="flex-1 p-3 space-y-1">
-          <p className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider px-3 py-2">Workspace</p>
+          <p className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider px-3 py-2">{t('sidebar.workspace')}</p>
           {links.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
@@ -76,11 +79,23 @@ export function Sidebar() {
         <div className="p-4 border-t border-white/5 space-y-3">
           <div className="flex items-center gap-2 text-xs">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
-            <span className="text-slate-500">GitHub Models · Connected</span>
+            <span className="text-slate-500">GitHub Models · {t('sidebar.connected')}</span>
           </div>
           <div className="flex items-center justify-between text-xs text-slate-700">
             <span>Agent Company</span>
-            <span className="px-1.5 py-0.5 rounded-lg bg-white/5 font-mono text-[11px]">v0.1.0</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  const newLang = i18n.language === 'zh' ? 'en' : 'zh';
+                  i18n.changeLanguage(newLang);
+                  localStorage.setItem('lang', newLang);
+                }}
+                className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                {i18n.language === 'zh' ? 'EN' : '中文'}
+              </button>
+              <span className="px-1.5 py-0.5 rounded-lg bg-white/5 font-mono text-[11px]">v0.1.0</span>
+            </div>
           </div>
         </div>
       </aside>

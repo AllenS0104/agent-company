@@ -423,6 +423,66 @@ async def list_modes():
     }
 
 
+# ── 自定义 Agent CRUD ────────────────────────
+
+@router.get("/custom-agents")
+async def list_custom_agents():
+    """列出所有自定义 Agent"""
+    from ..agents.custom import CustomAgentStore
+    store = CustomAgentStore()
+    await store.connect()
+    try:
+        agents = await store.list_agents()
+    finally:
+        await store.close()
+    return {"agents": agents}
+
+
+@router.post("/custom-agents")
+async def create_custom_agent(body: dict):
+    """创建自定义 Agent"""
+    from ..agents.custom import CustomAgentStore
+    if "name" not in body or "system_prompt" not in body:
+        raise HTTPException(400, "name and system_prompt are required")
+    store = CustomAgentStore()
+    await store.connect()
+    try:
+        agent = await store.create_agent(body)
+    finally:
+        await store.close()
+    return agent
+
+
+@router.put("/custom-agents/{agent_id}")
+async def update_custom_agent(agent_id: str, body: dict):
+    """更新自定义 Agent"""
+    from ..agents.custom import CustomAgentStore
+    store = CustomAgentStore()
+    await store.connect()
+    try:
+        agent = await store.update_agent(agent_id, body)
+    finally:
+        await store.close()
+    if not agent:
+        raise HTTPException(404, "Agent not found")
+    return agent
+
+
+@router.delete("/custom-agents/{agent_id}")
+async def delete_custom_agent(agent_id: str):
+    """删除自定义 Agent"""
+    from ..agents.custom import CustomAgentStore
+    store = CustomAgentStore()
+    await store.connect()
+    try:
+        ok = await store.delete_agent(agent_id)
+    finally:
+        await store.close()
+    if not ok:
+        raise HTTPException(404, "Agent not found")
+    return {"success": True}
+
+
 @router.get("/memory")
 async def get_memories(
     keyword: str = "",

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { getThreads, getThreadMessages, exportThread } from '../api/client';
 import { MessageBubble } from '../components/MessageBubble';
 import { Clock, MessageSquare, Download, ArrowRight, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { ThreadItem, MessageData } from '../types';
 
 const MODE_STYLES: Record<string, { bg: string; text: string; label: string }> = {
@@ -27,6 +28,7 @@ function formatRelativeTime(dateStr: string | undefined): string {
 }
 
 export function HistoryPage() {
+  const { t } = useTranslation();
   const [threads, setThreads] = useState<ThreadItem[]>([]);
   const [selectedThread, setSelectedThread] = useState<ThreadItem | null>(null);
   const [messages, setMessages] = useState<MessageData[]>([]);
@@ -110,29 +112,29 @@ export function HistoryPage() {
         <div className="p-5 border-b border-white/5">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <Clock size={18} className="text-slate-500" />
-            History
+            {t('history.title')}
           </h2>
-          <p className="text-xs text-slate-600 mt-1">{threads.length} 条讨论记录</p>
+          <p className="text-xs text-slate-600 mt-1">{threads.length} {t('history.subtitle')}</p>
         </div>
         {threads.length === 0 ? (
           <div className="p-10 text-center">
             <div className="w-16 h-16 rounded-xl bg-slate-800/50 flex items-center justify-center mx-auto mb-4">
               <MessageSquare size={28} className="text-slate-700" />
             </div>
-            <p className="text-base text-slate-500 font-medium mb-1">还没有讨论记录</p>
-            <p className="text-xs text-slate-700 mb-4">发起你的第一次 Agent 讨论吧</p>
+            <p className="text-base text-slate-500 font-medium mb-1">{t('history.empty')}</p>
+            <p className="text-xs text-slate-700 mb-4">{t('history.subtitle')}</p>
             <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-indigo-400 hover:text-indigo-300 font-medium transition-colors">
-              去发起一个 <ArrowRight size={14} />
+              {t('history.startOne')} <ArrowRight size={14} />
             </Link>
           </div>
         ) : (
-          threads.map((t, i) => {
-            const modeStyle = MODE_STYLES[t.mode] ?? { bg: 'bg-white/5', text: 'text-slate-500', label: t.mode };
-            const isDiscussing = t.status === 'discussing';
+          threads.map((thread, i) => {
+            const modeStyle = MODE_STYLES[thread.mode] ?? { bg: 'bg-white/5', text: 'text-slate-500', label: thread.mode };
+            const isDiscussing = thread.status === 'discussing';
             return (
-              <button key={t.id} onClick={() => handleSelect(t)}
+              <button key={thread.id} onClick={() => handleSelect(thread)}
                 className={'w-full text-left p-4 border-b border-white/5 transition-all duration-200 animate-msg-in ' +
-                  (selectedThread?.id === t.id
+                  (selectedThread?.id === thread.id
                     ? 'bg-indigo-500/8 border-l-2 border-l-indigo-400'
                     : 'hover:bg-white/[0.03] border-l-2 border-l-transparent')
                 }
@@ -142,7 +144,7 @@ export function HistoryPage() {
                   {isDiscussing && (
                     <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
                   )}
-                  <p className={'text-sm truncate font-medium ' + (isDiscussing ? 'text-emerald-200' : 'text-white')}>{t.topic}</p>
+                  <p className={'text-sm truncate font-medium ' + (isDiscussing ? 'text-emerald-200' : 'text-white')}>{thread.topic}</p>
                 </div>
                 <div className="flex items-center gap-2 mt-2 text-[11px]">
                   <span className={`chip ${modeStyle.bg} ${modeStyle.text}`}>
@@ -151,19 +153,19 @@ export function HistoryPage() {
                   {isDiscussing ? (
                     <span className="chip text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-1">
                       <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      讨论中
+                      {t('history.discussing')}
                     </span>
                   ) : (
                     <span className="chip text-emerald-500 bg-emerald-500/8">
-                      ✓ 已完成
+                      ✓ {t('history.completed')}
                     </span>
                   )}
-                  {'created_at' in t && (
-                    <span className="text-slate-600 ml-auto">{formatRelativeTime((t as any).created_at)}</span>
+                  {'created_at' in thread && (
+                    <span className="text-slate-600 ml-auto">{formatRelativeTime((thread as any).created_at)}</span>
                   )}
-                  <button onClick={(e) => handleExport(e, t.id)}
+                  <button onClick={(e) => handleExport(e, thread.id)}
                     className="ml-auto p-1 rounded-xl text-slate-500 hover:text-indigo-300 hover:bg-indigo-500/15 transition-all"
-                    title="导出报告">
+                    title={t('discuss.exportReport')}>
                     <Download size={12} />
                   </button>
                 </div>
@@ -179,9 +181,9 @@ export function HistoryPage() {
         {selectedThread?.status === 'discussing' && (
           <div className="px-4 py-2.5 border-b border-white/5 bg-indigo-500/5 flex items-center gap-2 flex-shrink-0">
             <div className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
-            <span className="text-xs text-indigo-300 font-medium">讨论进行中...</span>
+            <span className="text-xs text-indigo-300 font-medium">{t('history.discussing')}...</span>
             <span className="text-xs text-slate-600">
-              已产生 {messages.length} 条消息 · 每 3 秒自动刷新
+              {t('history.liveMessages', { count: messages.length })}
             </span>
             {autoRefresh && (
               <Loader2 size={12} className="animate-spin text-indigo-400 ml-auto" />
@@ -192,9 +194,9 @@ export function HistoryPage() {
         {/* Completion bar */}
         {selectedThread && selectedThread.status !== 'discussing' && messages.length > 0 && (
           <div className="px-4 py-2.5 border-b border-white/5 bg-emerald-500/5 flex items-center gap-2 flex-shrink-0">
-            <span className="text-xs text-emerald-400 font-medium">✅ 讨论已完成</span>
+            <span className="text-xs text-emerald-400 font-medium">✅ {t('history.discussionComplete')}</span>
             <span className="text-xs text-slate-600">
-              共 {messages.length} 条消息
+              共 {messages.length} {t('discuss.messages')}
             </span>
           </div>
         )}
@@ -211,7 +213,7 @@ export function HistoryPage() {
                 <div className="w-16 h-16 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-center mx-auto mb-4">
                   <MessageSquare size={24} className="text-slate-700" />
                 </div>
-                <p className="text-base text-slate-500 font-medium">选择一条讨论查看详情</p>
+                <p className="text-base text-slate-500 font-medium">{t('history.selectThread')}</p>
                 <p className="text-xs text-slate-700 mt-1">从左侧列表中点击选择</p>
               </div>
             </div>
@@ -219,7 +221,7 @@ export function HistoryPage() {
           {loading && (
             <div className="flex items-center justify-center mt-16">
               <Loader2 size={20} className="animate-spin text-indigo-400 mr-2" />
-              <span className="text-sm text-slate-400">加载中...</span>
+              <span className="text-sm text-slate-400">{t('common.loading')}</span>
             </div>
           )}
           {selectedThread && !loading && messages.map((msg, i) => (
@@ -231,7 +233,7 @@ export function HistoryPage() {
             <div className="flex items-center justify-center mt-16">
               <div className="text-center">
                 <Loader2 size={20} className="animate-spin text-indigo-400 mx-auto mb-3" />
-                <p className="text-sm text-slate-400">等待 Agent 产生消息...</p>
+                <p className="text-sm text-slate-400">{t('discuss.agentSpeaking')}</p>
               </div>
             </div>
           )}

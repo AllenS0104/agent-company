@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Loader2, Settings2, Download, Sparkles, Key } from 'lucide-react';
-import { postDiscuss, getModes, getProviders, exportThread, getConfig, updateConfig, getThreads, getThreadMessages } from '../api/client';
+import { getModes, getProviders, exportThread, getConfig, updateConfig, getThreads, getThreadMessages, streamDiscuss } from '../api/client';
 import { MessageBubble } from '../components/MessageBubble';
 import { DecisionCard } from '../components/DecisionCard';
 import { TaskList } from '../components/TaskList';
-import type { DiscussResponse, ModeInfo } from '../types';
+import { WorkflowDiagram } from '../components/WorkflowDiagram';
+import { useTranslation } from 'react-i18next';
+import type { DiscussResponse, ModeInfo, MessageData, DecisionData, TaskData } from '../types';
 
 const MODEL_OPTIONS: Record<string, string[]> = {
   github: [
@@ -47,25 +49,27 @@ const MODEL_OPTIONS: Record<string, string[]> = {
   ],
 };
 
-const LOADING_PHASES = [
-  { text: '收集观点...', emoji: '💡', sub: 'Agents are sharing initial perspectives' },
-  { text: '质疑讨论...', emoji: '⚔️', sub: 'Challenging ideas and exploring alternatives' },
-  { text: '深入分析...', emoji: '🔬', sub: 'Evaluating trade-offs and risks' },
-  { text: '仲裁决策...', emoji: '⚖️', sub: 'Synthesizing conclusions' },
-];
-
-const SAMPLE_TOPICS = [
-  { emoji: '🚀', title: '微服务 vs 单体架构', desc: '探讨不同项目规模下的最佳架构选择' },
-  { emoji: '🔐', title: 'JWT vs Session 认证方案', desc: '分析两种主流认证方式的优劣' },
-  { emoji: '📊', title: 'React vs Vue 技术选型', desc: '从团队、生态和性能角度比较前端框架' },
-  { emoji: '🤖', title: 'AI Agent 协作模式设计', desc: '多 Agent 系统的通信与协调策略' },
-];
-
 interface DiscussPageProps {
   onReconfigure?: () => void;
 }
 
 export function DiscussPage({ onReconfigure }: DiscussPageProps) {
+  const { t } = useTranslation();
+
+  const LOADING_PHASES = [
+    { text: t('phases.collecting'), emoji: '💡', sub: t('phases.collectingSub') },
+    { text: t('phases.challenging'), emoji: '⚔️', sub: t('phases.challengingSub') },
+    { text: t('phases.analyzing'), emoji: '🔬', sub: t('phases.analyzingSub') },
+    { text: t('phases.deciding'), emoji: '⚖️', sub: t('phases.decidingSub') },
+  ];
+
+  const SAMPLE_TOPICS = [
+    { emoji: '🚀', title: t('topics.microservices'), desc: t('topics.microservicesDesc') },
+    { emoji: '🔐', title: t('topics.auth'), desc: t('topics.authDesc') },
+    { emoji: '📊', title: t('topics.framework'), desc: t('topics.frameworkDesc') },
+    { emoji: '🤖', title: t('topics.agent'), desc: t('topics.agentDesc') },
+  ];
+
   const [topic, setTopic] = useState('');
   const [mode, setMode] = useState('debate');
   const [rounds, setRounds] = useState(2);
@@ -87,8 +91,14 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
   const [configStatus, setConfigStatus] = useState<any>(null);
   const [configSaved, setConfigSaved] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [streamMessages, setStreamMessages] = useState<MessageData[]>([]);
+  const [streamDecision, setStreamDecision] = useState<DecisionData | null>(null);
+  const [streamTasks, setStreamTasks] = useState<TaskData[]>([]);
+  const [streamThreadId, setStreamThreadId] = useState('');
 
   const pollActiveDiscussion = useCallback((threadId: string) => {
     if (pollRef.current) clearInterval(pollRef.current);
@@ -113,9 +123,12 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
     }, 3000);
   }, []);
 
-  // Cleanup polling on unmount
+  // Cleanup polling and SSE on unmount
   useEffect(() => {
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      abortRef.current?.abort();
+    };
   }, []);
 
   useEffect(() => {
@@ -136,7 +149,7 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [result]);
+  }, [result, streamMessages, streamDecision, streamTasks]);
 
   // Cycle through loading phases
   useEffect(() => {
@@ -178,32 +191,49 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
     if (!topic.trim() || loading) return;
     setLoading(true);
     setResult(null);
+    setStreamMessages([]);
+    setStreamDecision(null);
+    setStreamTasks([]);
+    setStreamThreadId('');
     setError('');
-    try {
-      const data = await postDiscuss({
-        topic: topic.trim(), mode, max_rounds: rounds,
-        extended_agents: extended, provider, model,
-      });
-      setResult(data);
-    } catch (err: any) {
-      setError(err.message || 'Request failed');
-    } finally {
-      setLoading(false);
-    }
+
+    abortRef.current = streamDiscuss(
+      { topic: topic.trim(), mode, max_rounds: rounds, extended_agents: extended, provider, model },
+      {
+        onMessage: (msg) => {
+          setStreamMessages(prev => [...prev, msg]);
+        },
+        onDecision: (dec) => {
+          setStreamDecision(dec);
+        },
+        onTasks: (taskList) => {
+          setStreamTasks(taskList);
+        },
+        onDone: (data) => {
+          setStreamThreadId(data.thread_id);
+          setLoading(false);
+        },
+        onError: (err) => {
+          setError(err);
+          setLoading(false);
+        },
+      }
+    );
   }
 
   async function handleExport() {
-    if (!result?.thread_id) return;
+    const tid = result?.thread_id || streamThreadId;
+    if (!tid) return;
     try {
-      const blob = await exportThread(result.thread_id);
+      const blob = await exportThread(tid);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `discussion-${result.thread_id}.md`;
+      a.download = `discussion-${tid}.md`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err: any) {
-      setError('导出失败: ' + (err.message || '未知错误'));
+      setError(t('discuss.exportReport') + ' failed: ' + (err.message || ''));
     }
   }
 
@@ -215,8 +245,8 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
       {/* Header */}
       <header className="px-6 py-4 border-b border-white/5 flex items-center justify-between glass">
         <div>
-          <h2 className="text-xl font-bold text-white tracking-tight">New Discussion</h2>
-          <p className="text-xs text-slate-500 mt-0.5">Multi-agent collaborative analysis</p>
+          <h2 className="text-xl font-bold text-white tracking-tight">{t('discuss.title')}</h2>
+          <p className="text-xs text-slate-500 mt-0.5">{t('discuss.subtitle')}</p>
         </div>
         <button
           onClick={() => setShowSettings(!showSettings)}
@@ -231,7 +261,7 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
         <div className="px-6 py-4 border-b border-white/5 glass animate-settings">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             <div>
-              <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Provider</label>
+              <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">{t('discuss.provider')}</label>
               <select value={provider} onChange={e => handleProviderChange(e.target.value)}
                 className="w-full bg-white/5 text-slate-200 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-colors">
                 {(providers.length > 0 ? providers : ['github', 'openai', 'gemini', 'claude']).map(p => (
@@ -240,14 +270,14 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
               </select>
             </div>
             <div>
-              <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Model</label>
+              <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">{t('discuss.model')}</label>
               <select value={model} onChange={e => setModel(e.target.value)}
                 className="w-full bg-white/5 text-slate-200 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-colors">
                 {currentModels.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Workflow</label>
+              <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">{t('discuss.workflow')}</label>
               <select value={mode} onChange={e => setMode(e.target.value)}
                 className="w-full bg-white/5 text-slate-200 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-colors">
                 {modes.length > 0
@@ -257,10 +287,10 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
               </select>
             </div>
             <div>
-              <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">Options</label>
+              <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">{t('discuss.options')}</label>
               <div className="flex items-center gap-4 py-2">
                 <div className="flex items-center gap-1.5">
-                  <label className="text-[11px] text-slate-400">Rounds</label>
+                  <label className="text-[11px] text-slate-400">{t('discuss.rounds')}</label>
                   <input type="number" min={1} max={10} value={rounds}
                     onChange={e => {
                       const v = parseInt(e.target.value, 10);
@@ -272,7 +302,7 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
                   <input type="checkbox" checked={extended}
                     onChange={e => setExtended(e.target.checked)}
                     className="rounded border-slate-600 bg-white/5 text-indigo-500 focus:ring-indigo-500/20" />
-                  Extended
+                  {t('discuss.extended')}
                 </label>
               </div>
             </div>
@@ -337,16 +367,16 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
                 <div className="col-span-full flex items-center gap-3">
                   <button onClick={handleSaveConfig}
                     className="px-4 py-2 rounded-xl bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25 transition-all text-xs font-medium border border-indigo-500/15">
-                    💾 保存配置（当前会话）
+                    💾 {t('discuss.saveConfig')}
                   </button>
                   {onReconfigure && (
                     <button onClick={onReconfigure}
                       className="px-4 py-2 rounded-xl bg-amber-500/8 text-amber-300 hover:bg-amber-500/15 transition-all text-xs font-medium border border-amber-500/15">
-                      🔄 重新配置 Provider
+                      🔄 {t('discuss.reconfigure')}
                     </button>
                   )}
                   {configSaved && (
-                    <span className="text-xs text-emerald-400 animate-phase">✅ 已保存</span>
+                    <span className="text-xs text-emerald-400 animate-phase">✅ {t('discuss.configSaved')}</span>
                   )}
                   <span className="text-[11px] text-slate-600">* 配置仅在当前会话有效，重启后需重新输入</span>
                 </div>
@@ -356,19 +386,31 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
         </div>
       )}
 
+      {/* Workflow diagram - show during and after discussion */}
+      {(loading || streamMessages.length > 0 || result) && (
+        <div className="mb-0 mx-6 mt-4 card">
+          <WorkflowDiagram
+            mode={mode}
+            messages={streamMessages.length > 0 ? streamMessages : result?.messages || []}
+            loading={loading}
+          />
+        </div>
+      )}
+
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-6 py-4">
         {/* Empty / welcome state */}
-        {!result && !loading && !error && (
+        {!result && !loading && !error && streamMessages.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center max-w-lg">
               <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-indigo-500/15 to-purple-600/15 border border-indigo-500/15 flex items-center justify-center mx-auto mb-5 animate-float">
                 <span className="text-3xl">🏢</span>
               </div>
-              <h3 className="text-3xl font-bold gradient-text mb-2">Agent Company</h3>
+              <h3 className="text-3xl font-bold gradient-text mb-2">{t('discuss.emptyTitle')}</h3>
               <p className="text-base text-slate-500 leading-relaxed mb-6">
-                输入话题，多个 AI Agent 将从不同视角协作分析<br/>
-                产品、架构、开发、评审 —— 全方位讨论
+                {t('discuss.emptyDesc').split('\n').map((line: string, i: number) => (
+                  <span key={i}>{line}{i === 0 && <br/>}</span>
+                ))}
               </p>
 
               {/* Agent role badges */}
@@ -384,20 +426,20 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
               {/* Quick-start topics */}
               <div className="text-left">
                 <p className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                  <Sparkles size={12} /> 快速开始 · 点击话题即可发起讨论
+                  <Sparkles size={12} /> {t('discuss.quickStart')}
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {SAMPLE_TOPICS.map(t => (
+                  {SAMPLE_TOPICS.map(tp => (
                     <button
-                      key={t.title}
-                      onClick={() => handleQuickTopic(t.title)}
+                      key={tp.title}
+                      onClick={() => handleQuickTopic(tp.title)}
                       className="topic-card text-left card card-hover p-3.5 group"
                     >
                       <div className="flex items-start gap-2.5">
-                        <span className="text-lg mt-0.5">{t.emoji}</span>
+                        <span className="text-lg mt-0.5">{tp.emoji}</span>
                         <div>
-                          <p className="text-sm font-medium text-slate-200 group-hover:text-white transition-colors">{t.title}</p>
-                          <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">{t.desc}</p>
+                          <p className="text-sm font-medium text-slate-200 group-hover:text-white transition-colors">{tp.title}</p>
+                          <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">{tp.desc}</p>
                         </div>
                       </div>
                     </button>
@@ -408,8 +450,8 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
           </div>
         )}
 
-        {/* Loading with meeting scene */}
-        {loading && (
+        {/* Loading with meeting scene - only when no messages received yet */}
+        {loading && streamMessages.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               {/* Agent circle - meeting scene */}
@@ -456,7 +498,7 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
                 ))}
               </div>
 
-              <p className="text-xs text-slate-700 mt-6">讨论可能需要一分钟，请耐心等待</p>
+              <p className="text-xs text-slate-700 mt-6">{t('discuss.waitHint')}</p>
             </div>
           </div>
         )}
@@ -464,6 +506,60 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
         {error && (
           <div className="card p-4 border-red-500/15 bg-red-500/5 animate-msg-in">
             <p className="text-sm text-red-400">❌ {error}</p>
+          </div>
+        )}
+
+        {/* SSE streaming messages - show during loading AND after completion */}
+        {streamMessages.length > 0 && (
+          <div>
+            {streamMessages.map((msg, i) => (
+              <div key={i}>
+                {i > 0 && (
+                  <div className="flex justify-center py-1">
+                    <div className="w-px h-4 bg-gradient-to-b from-white/10 to-transparent" />
+                  </div>
+                )}
+                <div className="animate-msg-in speaking" style={{ animationDelay: `${Math.min(i * 0.05, 0.3)}s` }}>
+                  <MessageBubble msg={msg} />
+                </div>
+              </div>
+            ))}
+
+            {/* Still loading indicator after messages */}
+            {loading && (
+              <div className="flex items-center gap-2 py-4 justify-center">
+                <Loader2 size={16} className="animate-spin text-indigo-400" />
+                <span className="text-sm text-slate-500">Agent 正在发言...</span>
+              </div>
+            )}
+
+            {/* Decision */}
+            {streamDecision && (
+              <div className="animate-stamp">
+                <DecisionCard decision={streamDecision} />
+              </div>
+            )}
+
+            {/* Tasks */}
+            {streamTasks.length > 0 && <TaskList tasks={streamTasks} />}
+
+            {/* Completion bar */}
+            {!loading && streamThreadId && (
+              <div className="mt-6 card p-5 text-center flex items-center justify-center gap-4 animate-stamp relative overflow-hidden">
+                <span className="sparkle-item absolute top-2 left-8 text-sm" style={{ animationDelay: '0s' }}>✨</span>
+                <span className="sparkle-item absolute top-3 right-12 text-xs" style={{ animationDelay: '0.5s' }}>⭐</span>
+                <span className="sparkle-item absolute bottom-2 left-16 text-xs" style={{ animationDelay: '1s' }}>💫</span>
+                <span className="sparkle-item absolute bottom-3 right-20 text-sm" style={{ animationDelay: '0.3s' }}>✨</span>
+                <p className="text-base text-emerald-400 font-medium">
+                  ✅ {t('discuss.complete')} · {streamMessages.length} {t('discuss.messages')} · {streamTasks.length} {t('discuss.tasks')}
+                </p>
+                <button onClick={handleExport}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25 transition-all text-sm font-medium border border-indigo-500/15">
+                  <Download size={14} />
+                  📥 {t('discuss.exportReport')}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -500,12 +596,12 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
               <span className="sparkle-item absolute bottom-2 left-16 text-xs" style={{ animationDelay: '1s' }}>💫</span>
               <span className="sparkle-item absolute bottom-3 right-20 text-sm" style={{ animationDelay: '0.3s' }}>✨</span>
               <p className="text-base text-emerald-400 font-medium">
-                ✅ Discussion complete · {result.messages.length} messages · {result.tasks.length} tasks
+                ✅ {t('discuss.complete')} · {result.messages.length} {t('discuss.messages')} · {result.tasks.length} {t('discuss.tasks')}
               </p>
               <button onClick={handleExport}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25 transition-all text-sm font-medium border border-indigo-500/15">
                 <Download size={14} />
-                📥 导出报告
+                📥 {t('discuss.exportReport')}
               </button>
             </div>
           </div>
@@ -519,14 +615,14 @@ export function DiscussPage({ onReconfigure }: DiscussPageProps) {
           <input
             type="text" value={topic}
             onChange={e => setTopic(e.target.value)}
-            placeholder="输入你想讨论的话题..."
+            placeholder={t('discuss.placeholder')}
             className="flex-1 bg-white/5 text-white border border-white/10 rounded-xl px-4 py-3.5 text-base placeholder-slate-600 focus:outline-none focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/10 transition-all"
             disabled={loading}
           />
           <button type="submit" disabled={!topic.trim() || loading}
             className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white px-6 py-3.5 rounded-xl transition-all shadow-lg shadow-indigo-500/20 disabled:shadow-none flex items-center gap-2 text-sm font-medium">
             {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-            {loading ? 'Thinking...' : 'Send'}
+            {loading ? t('discuss.thinking') : t('common.send')}
           </button>
         </div>
         <div className="flex items-center gap-3 mt-2 text-[11px] text-slate-600">

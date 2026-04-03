@@ -1,4 +1,4 @@
-import type { DiscussResponse, ThreadItem, MessageData, ModeInfo, MemoryItem, MemorySummary } from '../types';
+import type { DiscussResponse, ThreadItem, MessageData, ModeInfo, MemoryItem, MemorySummary, DecisionData, TaskData } from '../types';
 
 const BASE = '/api';
 
@@ -87,6 +87,133 @@ export async function getRelatedMemories(topic: string, limit = 5): Promise<Memo
   const params = new URLSearchParams({ topic, limit: String(limit) });
   const data = await fetchJson<{ memories: MemoryItem[] }>(`${BASE}/memory/related?${params}`);
   return data.memories;
+}
+
+// ── Custom Agents CRUD ─────────────────────────
+
+export interface CustomAgent {
+  id: string;
+  name: string;
+  emoji: string;
+  description: string;
+  system_prompt: string;
+  color: string;
+  created_at?: string;
+}
+
+export async function listCustomAgents(): Promise<CustomAgent[]> {
+  const data = await fetchJson<{ agents: CustomAgent[] }>(`${BASE}/custom-agents`);
+  return data.agents;
+}
+
+export async function createCustomAgent(body: {
+  name: string;
+  emoji?: string;
+  description?: string;
+  system_prompt: string;
+  color?: string;
+}): Promise<CustomAgent> {
+  return fetchJson<CustomAgent>(`${BASE}/custom-agents`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateCustomAgent(
+  agentId: string,
+  body: Partial<Omit<CustomAgent, 'id' | 'created_at'>>,
+): Promise<CustomAgent> {
+  return fetchJson<CustomAgent>(`${BASE}/custom-agents/${agentId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteCustomAgent(agentId: string): Promise<void> {
+  await fetchJson(`${BASE}/custom-agents/${agentId}`, { method: 'DELETE' });
+}
+
+
+export interface SSECallbacks {
+  onMessage: (msg: MessageData) => void;
+  onDecision: (decision: DecisionData) => void;
+  onTasks: (tasks: TaskData[]) => void;
+  onDone: (data: { thread_id: string }) => void;
+  onError: (error: string) => void;
+}
+
+export function streamDiscuss(
+  body: {
+    topic: string;
+    mode?: string;
+    max_rounds?: number;
+    extended_agents?: boolean;
+    provider?: string;
+    model?: string;
+  },
+  callbacks: SSECallbacks
+): AbortController {
+  const controller = new AbortController();
+
+  fetch(`${BASE}/discuss/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: controller.signal,
+  }).then(async (response) => {
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      callbacks.onError(`API error ${response.status}: ${text}`);
+      return;
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) { callbacks.onError('No response body'); return; }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      let currentEvent = '';
+      let currentData = '';
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          currentEvent = line.slice(7).trim();
+        } else if (line.startsWith('data: ')) {
+          currentData = line.slice(6);
+        } else if (line === '' && currentEvent && currentData) {
+          try {
+            const parsed = JSON.parse(currentData);
+            switch (currentEvent) {
+              case 'message': callbacks.onMessage(parsed); break;
+              case 'decision': callbacks.onDecision(parsed); break;
+              case 'tasks': callbacks.onTasks(parsed.tasks || parsed); break;
+              case 'done': callbacks.onDone(parsed); break;
+              case 'error': callbacks.onError(parsed.error || 'Unknown error'); break;
+            }
+          } catch { /* skip malformed events */ }
+          currentEvent = '';
+          currentData = '';
+        }
+      }
+    }
+  }).catch((err) => {
+    if (err.name !== 'AbortError') {
+      callbacks.onError(err.message || 'Connection failed');
+    }
+  });
+
+  return controller;
 }
 
 export async function requestDeviceCode(): Promise<{

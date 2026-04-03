@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { updateConfig, getConfig, requestDeviceCode, pollGitHubToken } from '../api/client';
+import { useTranslation } from 'react-i18next';
 
 interface WelcomePageProps {
   onConfigured: () => void;
@@ -92,6 +93,7 @@ function Spinner({ className = 'w-4 h-4' }: { className?: string }) {
 }
 
 function GitHubDeviceFlow({ onConfigured }: { onConfigured: () => void }) {
+  const { t } = useTranslation();
   const [deviceFlow, setDeviceFlow] = useState<DeviceFlowState>('idle');
   const [userCode, setUserCode] = useState('');
   const [verificationUri, setVerificationUri] = useState('');
@@ -122,11 +124,11 @@ function GitHubDeviceFlow({ onConfigured }: { onConfigured: () => void }) {
           return;
         } else if (result.status === 'expired') {
           setDeviceFlow('error');
-          setError('授权已过期，请重试');
+          setError(t('welcome.authExpired'));
           return;
         } else if (result.status === 'error') {
           setDeviceFlow('error');
-          setError(result.error || '授权失败');
+          setError(result.error || t('welcome.authFailed'));
           return;
         } else if (result.status === 'slow_down') {
           interval = result.interval || interval + 5;
@@ -136,7 +138,7 @@ function GitHubDeviceFlow({ onConfigured }: { onConfigured: () => void }) {
         retries++;
         if (retries >= maxRetries) {
           setDeviceFlow('error');
-          setError('网络错误，请重试');
+          setError(t('welcome.networkError'));
           return;
         }
         // retry after a short delay
@@ -158,7 +160,7 @@ function GitHubDeviceFlow({ onConfigured }: { onConfigured: () => void }) {
       pollUntilDone(device_code, interval || 5);
     } catch {
       setDeviceFlow('error');
-      setError('无法获取授权码，请检查网络连接');
+      setError(t('welcome.cannotGetCode'));
     }
   }
 
@@ -176,14 +178,14 @@ function GitHubDeviceFlow({ onConfigured }: { onConfigured: () => void }) {
     return (
       <div className="space-y-4">
         <p className="text-[11px] text-slate-500 leading-relaxed">
-          点击下方按钮，在 GitHub 中授权登录。无需手动配置 Token。
+          {t('welcome.loginHint')}
         </p>
         <button
           onClick={startGitHubLogin}
           className="w-full py-3 rounded-xl bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 text-white font-medium text-sm transition-all border border-white/10 hover:border-white/20 flex items-center justify-center gap-2"
         >
           <span className="text-lg">🐙</span>
-          Login with GitHub
+          {t('welcome.loginWithGithub')}
         </button>
       </div>
     );
@@ -193,7 +195,7 @@ function GitHubDeviceFlow({ onConfigured }: { onConfigured: () => void }) {
     return (
       <div className="space-y-4">
         <div className="text-center">
-          <p className="text-[11px] text-slate-400 mb-3">请在打开的页面中输入代码：</p>
+          <p className="text-[11px] text-slate-400 mb-3">{t('welcome.enterCode')}</p>
           <div className="inline-block border-2 border-dashed border-indigo-500/40 rounded-xl px-8 py-4 bg-indigo-500/5">
             <span className="text-2xl font-mono font-bold text-white tracking-[0.3em]">{userCode}</span>
           </div>
@@ -204,7 +206,7 @@ function GitHubDeviceFlow({ onConfigured }: { onConfigured: () => void }) {
             onClick={handleCopyCode}
             className="flex-1 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-slate-300 transition-all flex items-center justify-center gap-1.5"
           >
-            {copied ? '✓ 已复制' : '📋 复制代码'}
+            {copied ? `✓ ${t('welcome.copied')}` : `📋 ${t('welcome.copyCode')}`}
           </button>
           <a
             href={verificationUri}
@@ -212,13 +214,13 @@ function GitHubDeviceFlow({ onConfigured }: { onConfigured: () => void }) {
             rel="noopener noreferrer"
             className="flex-1 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-slate-300 transition-all flex items-center justify-center gap-1.5"
           >
-            🔗 打开 GitHub
+            🔗 {t('welcome.openGithub')}
           </a>
         </div>
 
         <div className="flex items-center justify-center gap-2 pt-2">
           <Spinner className="w-4 h-4 text-indigo-400" />
-          <span className="text-xs text-slate-500">等待授权...</span>
+          <span className="text-xs text-slate-500">{t('welcome.waitingAuth')}</span>
         </div>
       </div>
     );
@@ -236,9 +238,9 @@ function GitHubDeviceFlow({ onConfigured }: { onConfigured: () => void }) {
             />
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-emerald-400">✅ 授权成功</p>
+            <p className="text-sm font-medium text-emerald-400">✅ {t('welcome.authSuccess')}</p>
             <p className="text-xs text-slate-400 truncate">
-              欢迎, @{githubUser?.login}
+              {t('welcome.welcome')}, @{githubUser?.login}
               {githubUser?.name && ` (${githubUser.name})`}
             </p>
           </div>
@@ -248,7 +250,7 @@ function GitHubDeviceFlow({ onConfigured }: { onConfigured: () => void }) {
           onClick={onConfigured}
           className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-medium text-sm transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2"
         >
-          开始使用 →
+          {t('welcome.startUsing')}
         </button>
       </div>
     );
@@ -258,19 +260,20 @@ function GitHubDeviceFlow({ onConfigured }: { onConfigured: () => void }) {
   return (
     <div className="space-y-4">
       <div className="px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20">
-        <p className="text-xs text-red-400">❌ {error || '授权失败'}</p>
+        <p className="text-xs text-red-400">❌ {error || t('welcome.authFailed')}</p>
       </div>
       <button
         onClick={() => { setDeviceFlow('idle'); setError(''); }}
         className="w-full py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium text-sm transition-all flex items-center justify-center gap-2"
       >
-        🔄 重试
+        🔄 {t('welcome.retry')}
       </button>
     </div>
   );
 }
 
 export function WelcomePage({ onConfigured }: WelcomePageProps) {
+  const { t } = useTranslation();
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -292,7 +295,7 @@ export function WelcomePage({ onConfigured }: WelcomePageProps) {
     const requiredFields = provider.fields.filter(f => f.required !== false);
     const missing = requiredFields.find(f => !formValues[f.key]?.trim());
     if (missing) {
-      setError(`请输入 ${missing.label}`);
+      setError(`${t('welcome.pleaseEnter')} ${missing.label}`);
       return;
     }
 
@@ -312,10 +315,10 @@ export function WelcomePage({ onConfigured }: WelcomePageProps) {
       if (providerCfg?.configured) {
         onConfigured();
       } else {
-        setError('配置已保存，但 Provider 未激活，请检查 Key 是否正确');
+        setError(t('welcome.configSavedButInactive'));
       }
     } catch (err: any) {
-      setError('保存失败: ' + (err.message || '未知错误'));
+      setError(`${t('welcome.saveFailed')}: ` + (err.message || ''));
     } finally {
       setSaving(false);
     }
@@ -338,9 +341,9 @@ export function WelcomePage({ onConfigured }: WelcomePageProps) {
           <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-indigo-500/15 to-purple-600/15 border border-indigo-500/15 flex items-center justify-center mx-auto mb-5 animate-float">
             <span className="text-3xl">🏢</span>
           </div>
-          <h1 className="text-4xl font-bold gradient-text mb-2">Agent Company</h1>
-          <p className="text-base text-slate-400 mb-1">多 AI 协作讨论与执行框架</p>
-          <p className="text-xs text-slate-600">选择你的 AI Provider 开始使用</p>
+          <h1 className="text-4xl font-bold gradient-text mb-2">{t('welcome.title')}</h1>
+          <p className="text-base text-slate-400 mb-1">{t('welcome.subtitle')}</p>
+          <p className="text-xs text-slate-600">{t('welcome.chooseProvider')}</p>
         </div>
 
         {/* Provider cards grid */}
@@ -403,7 +406,7 @@ export function WelcomePage({ onConfigured }: WelcomePageProps) {
                       : 'text-slate-500 hover:text-slate-400 border border-transparent'
                   }`}
                 >
-                  🔐 GitHub 登录
+                  🔐 {t('welcome.githubLogin')}
                 </button>
                 <button
                   onClick={() => setGithubTab('token')}
@@ -413,7 +416,7 @@ export function WelcomePage({ onConfigured }: WelcomePageProps) {
                       : 'text-slate-500 hover:text-slate-400 border border-transparent'
                   }`}
                 >
-                  🔑 手动输入 Token
+                  🔑 {t('welcome.manualToken')}
                 </button>
               </div>
             )}
@@ -454,7 +457,7 @@ export function WelcomePage({ onConfigured }: WelcomePageProps) {
                     rel="noopener noreferrer"
                     className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2 transition-colors"
                   >
-                    获取 Key ↗
+                    {t('welcome.getKey')}
                   </a>
                 </p>
 
@@ -474,10 +477,10 @@ export function WelcomePage({ onConfigured }: WelcomePageProps) {
                   {saving ? (
                     <>
                       <Spinner />
-                      保存中...
+                      {t('welcome.saving')}
                     </>
                   ) : (
-                    <>🚀 保存并开始使用</>
+                    <>{`🚀 ${t('welcome.saveAndStart')}`}</>
                   )}
                 </button>
               </>
@@ -487,7 +490,7 @@ export function WelcomePage({ onConfigured }: WelcomePageProps) {
 
         {/* Footer note */}
         <p className="text-center text-[11px] text-slate-700">
-          🔒 API Key 仅存储在当前会话，不会上传到任何第三方服务
+          🔒 {t('welcome.privacyNote')}
         </p>
       </div>
     </div>

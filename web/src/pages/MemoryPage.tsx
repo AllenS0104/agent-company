@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getMemories, getMemorySummary } from '../api/client';
 import { Search, Brain, Loader2, ArrowRight, Lightbulb, Scale, Wrench, Star, Archive, Tag, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { MemoryItem, MemorySummary } from '../types';
 
 const TYPE_CONFIG: Record<string, { emoji: string; bg: string; text: string; border: string; icon: typeof Brain }> = {
@@ -37,6 +38,7 @@ function ImportanceStars({ level }: { level: number }) {
 }
 
 export function MemoryPage() {
+  const { t } = useTranslation();
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [keyword, setKeyword] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -73,8 +75,8 @@ export function MemoryPage() {
           <Brain size={20} className="text-white" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-white">Project Memory</h2>
-          <p className="text-xs text-slate-500">过往讨论中的决策与知识沉淀</p>
+          <h2 className="text-xl font-bold text-white">{t('memoryPage.title')}</h2>
+          <p className="text-xs text-slate-500">{t('memoryPage.subtitle')}</p>
         </div>
         {memories.length > 0 && (
           <span className="ml-auto text-xs text-slate-600 bg-white/5 px-2.5 py-1 rounded-full">
@@ -88,13 +90,13 @@ export function MemoryPage() {
         <div className="card p-4 mb-6 grid grid-cols-2 sm:grid-cols-4 gap-3 animate-msg-in">
           <div className="text-center">
             <div className="text-xl font-bold text-white">{summary.active}</div>
-            <div className="text-xs text-slate-500">活跃记忆</div>
+            <div className="text-xs text-slate-500">{t('memoryPage.active')}</div>
           </div>
           <div className="text-center">
             <div className="text-xl font-bold text-slate-400 flex items-center justify-center gap-1">
               <Archive size={16} /> {summary.archived}
             </div>
-            <div className="text-xs text-slate-500">已归档</div>
+            <div className="text-xs text-slate-500">{t('memoryPage.archived')}</div>
           </div>
           <div className="text-center">
             <div className="text-xl font-bold text-indigo-400">{Object.keys(summary.by_type).length}</div>
@@ -104,7 +106,7 @@ export function MemoryPage() {
             <div className="text-xl font-bold text-amber-400 flex items-center justify-center gap-1">
               <Tag size={16} /> {summary.all_tags.length}
             </div>
-            <div className="text-xs text-slate-500">标签数</div>
+            <div className="text-xs text-slate-500">{t('memoryPage.tags')}</div>
           </div>
         </div>
       )}
@@ -112,7 +114,7 @@ export function MemoryPage() {
       {/* Tag Filter */}
       {summary && summary.all_tags.length > 0 && (
         <div className="flex gap-1.5 mb-4 flex-wrap items-center">
-          <span className="text-xs text-slate-500 mr-1">标签筛选:</span>
+          <span className="text-xs text-slate-500 mr-1">{t('memoryPage.allTags')}:</span>
           {summary.all_tags.map(tag => (
             <button key={tag}
               onClick={() => toggleTag(tag)}
@@ -142,13 +144,13 @@ export function MemoryPage() {
           <input type="text" value={keyword}
             onChange={e => setKeyword(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && search()}
-            placeholder="搜索记忆... 按 Enter 搜索"
+            placeholder={t('memoryPage.search')}
             className="w-full bg-white/5 text-white border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm placeholder-slate-600 focus:outline-none focus:border-purple-500/40 focus:ring-2 focus:ring-purple-500/10 transition-all" />
         </div>
         <button onClick={search} disabled={loading}
           className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 disabled:from-slate-800 disabled:to-slate-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-all shadow-lg shadow-purple-500/15 disabled:shadow-none flex items-center gap-2">
           {loading ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
-          搜索
+          {t('memoryPage.search')}
         </button>
       </div>
 
@@ -156,7 +158,7 @@ export function MemoryPage() {
       {loading && (
         <div className="flex items-center justify-center py-12">
           <Loader2 size={20} className="animate-spin text-purple-400 mr-2" />
-          <span className="text-sm text-slate-400">搜索中...</span>
+          <span className="text-sm text-slate-400">{t('common.loading')}</span>
         </div>
       )}
 
@@ -172,13 +174,12 @@ export function MemoryPage() {
           <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-purple-500/8 to-pink-500/8 border border-purple-500/10 flex items-center justify-center mx-auto mb-5 animate-float">
             <Brain size={36} className="text-purple-700" />
           </div>
-          <h3 className="text-lg font-bold text-slate-300 mb-2">还没有记忆</h3>
+          <h3 className="text-lg font-bold text-slate-300 mb-2">{t('memoryPage.empty')}</h3>
           <p className="text-sm text-slate-600 mb-5 leading-relaxed max-w-sm mx-auto">
-            讨论完成后，决策和关键知识会自动保存到这里<br/>
-            开始一场讨论，让 Agent 们帮你沉淀智慧
+            {t('memoryPage.emptyHint')}
           </p>
           <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-purple-400 hover:text-purple-300 font-medium transition-colors">
-            去发起一个讨论 <ArrowRight size={14} />
+            {t('history.startOne')} <ArrowRight size={14} />
           </Link>
         </div>
       )}
